@@ -1,8 +1,7 @@
-# Portainer-ready stack for gifgrep-server.
-# Paste this into Portainer -> Stacks -> Web editor, then set FAV_TOKEN in the
-# stack's "Environment variables" panel (skip stack.env; Portainer creates it
-# itself). The image is published to Docker Hub by the GitHub Action
-# (.github/workflows/docker-image.yml); Portainer pulls it on deploy.
+# Example stack for gifdeck-server.
+# Set FAV_TOKEN in the stack's "Environment variables" panel (or paste this
+# into Portainer -> Stacks -> Web editor). The image is published to Docker
+# Hub by the GitHub Action (.github/workflows/docker-image.yml) on release.
 
 services:
   gif-favs:
@@ -17,7 +16,7 @@ services:
       FAV_HOST: "0.0.0.0"
       FAV_DB_PATH: /data/favorites.db
     volumes:
-      - /home/Diamond/Docker/GifFavs/db:/data
+      - ./db:/data
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8099/health || exit 1"]
       interval: 30s

@@ -1,7 +1,6 @@
 # API v1
 
-Base path: `/api/v1` — the reverse proxy maps `favs.veryshiny.net` to this
-service.
+Base path: `/api/v1`. Put a reverse proxy with TLS in front of the service.
 
 Auth: header `X-Auth-Token: <token>` required on **all** `/api/v1` routes.
 Only `/health` is unauthenticated.

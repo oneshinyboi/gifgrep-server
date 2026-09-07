@@ -1,11 +1,11 @@
-# gifgrep-server
+# gifdeck-server
 
 Small, self-hosted GIF-favorites sync server.
 
-A personal REST API (Rust + axum + SQLite) that stores favorite GIFs as
-URL bookmarks: the server half of a "Discord GIF-picker favorites" — but
-self-hosted and terminal-first. A lightweight GIF picker client on two Linux
-machines shares one favorites list through it.
+A REST API (Rust + axum + SQLite) that stores favorite GIFs as URL bookmarks —
+the server half of a GIF-picker favorites feature, self-hosted and
+terminal-first. Point any client at it and share one favorites list across
+your machines.
 
 - Rust (axum + tokio, no HTTP framework beyond axum's router)
 - SQLite via `sqlx` (SQLite C sources bundled at build time; no system SQLite)
@@ -13,7 +13,7 @@ machines shares one favorites list through it.
   single-user service (bearer token; TLS is terminated by the reverse proxy;
   no CORS)
 
-API contract: see [api.md](api.md). Deploy runbook: see [DEPLOY.md](DEPLOY.md).
+API contract: see [api.md](api.md).
 
 ## Quick start (local)
 
@@ -37,11 +37,11 @@ DB is created on first run at `FAV_DB_PATH` (WAL mode, single connection).
 ## Routes
 
 ```
-GET    /health                                    -> 200 {"status":"ok"}
-GET    /api/v1/favorites[?limit=N[&offset=N]]  -> 200 sorted array
-POST   /api/v1/favorites                          -> 200 upserted item
-PATCH  /api/v1/favorites/{id}/use                 -> 200 {id,use_count,last_used}
-DELETE /api/v1/favorites/{id}                     -> 204
+GET    /health                                   -> 200 {"status":"ok"}
+GET    /api/v1/favorites[?limit=N[&offset=N]]    -> 200 sorted array
+POST   /api/v1/favorites                         -> 200 upserted item
+PATCH  /api/v1/favorites/{id}/use                -> 200 {id,use_count,last_used}
+DELETE /api/v1/favorites/{id}                    -> 204
 ```
 
 `X-Auth-Token: <token>` is required on all `/api/v1/*` routes.
@@ -50,19 +50,19 @@ Formal contract + curl examples: [api.md](api.md).
 ## Layout
 
 ```
-gifgrep-server/
+gifdeck-server/
 ├── .gitignore
 ├── .dockerignore
 ├── api.md              # the v1 contract + curl examples
 ├── src/main.rs         # env config, listener, graceful shutdown
 ├── src/routes.rs       # router, auth middleware, handlers, logging
 ├── src/db.rs           # SQLite open (WAL) + all queries
-├── src/tests.rs        # ported Go tests + POST/PATCH/DELETE contract tests
+├── src/tests.rs        # list/pagination, validation, upsert, auth tests
 ├── Cargo.toml / Cargo.lock
 ├── Dockerfile          # multi-stage: rust:1-alpine (musl) -> alpine:3.20, uid 1000
-├── compose.yml         # Portainer-ready stack (no env_file)
+├── compose.yml         # example stack
 ├── stack.env.example   # FAV_TOKEN=change-me
-└── DEPLOY.md           # exact deploy runbook for veryshiny.net
+└── .github/workflows   # builds + pushes the Docker image on release
 ```
 
 ## Docker
@@ -75,6 +75,15 @@ docker run -d --name gif-favs -p 8099:8099 \
   giffavs:latest
 ```
 
+Prebuilt images are published to Docker Hub as
+`diamondcoder295/giffavs:<version>` (plus `:latest`) on every GitHub release.
+
+## Tests
+
+```sh
+cargo test
+```
+
 ## Notes
 
 - **Build image version**: the build stage uses `rust:1-alpine` (musl target,
@@ -82,10 +91,8 @@ docker run -d --name gif-favs -p 8099:8099 \
   needs `gcc`/`musl-dev` but the runtime has no SQLite dependency.
 - Binary is built with `strip = true`, `lto = true` in `[profile.release]`
   (~4 MiB).
-- Tests: `cargo test` (list ordering/pagination, validation, upsert,
-  use-count, delete, auth, 404/405).
 - `last_used` is `null` and `title` is `""` for never-used / untitled items.
 - List responses carry an `X-Total-Count` header with the total number of
   favorites, so paged clients can compute the page count.
-- No TLS, no users, no CORS — that is deliberate; the nginx proxy ahead of it
-  handles TLS and the bearer token is the whole auth story.
+- No TLS, no users, no CORS — that is deliberate; put a reverse proxy ahead of
+  it for TLS and the bearer token is the whole auth story.
