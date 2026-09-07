@@ -6,7 +6,8 @@ db/
 .git/
 .gitignore
 .github/
-vendor/
+target/
 dist/
-gif-favs
-/go/pkg
+Dockerfile
+compose.yml
+stack.env*

@@ -2,24 +2,25 @@
 
 Small, self-hosted GIF-favorites sync server.
 
-A personal REST API (Go stdlib + pure-Go SQLite) that stores favorite GIFs as
+A personal REST API (Rust + axum + SQLite) that stores favorite GIFs as
 URL bookmarks: the server half of a "Discord GIF-picker favorites" — but
 self-hosted and terminal-first. A lightweight GIF picker client on two Linux
 machines shares one favorites list through it.
 
-- Go 1.26 (stdlib `net/http` only, no HTTP framework)
-- SQLite via pure-Go `modernc.org/sqlite` (pinned to `v1.40.0`; no cgo bindings)
-- Single binary, ~9.5 MiB, WAL mode, private single-user service
-  (bearer token; TLS is terminated by the reverse proxy; no CORS)
+- Rust (axum + tokio, no HTTP framework beyond axum's router)
+- SQLite via `sqlx` (SQLite C sources bundled at build time; no system SQLite)
+- Single static binary, ~4 MiB, WAL mode, single connection, private
+  single-user service (bearer token; TLS is terminated by the reverse proxy;
+  no CORS)
 
 API contract: see [api.md](api.md). Deploy runbook: see [DEPLOY.md](DEPLOY.md).
 
 ## Quick start (local)
 
 ```sh
-go build -trimpath -ldflags="-s -w -buildid=" -o gif-favs ./src
+cargo build --release
 
-FAV_TOKEN=test123 FAV_PORT=8099 ./gif-favs
+FAV_TOKEN=test123 FAV_PORT=8099 ./target/release/gif-favs
 ```
 
 Config comes from environment variables only (no config file):
@@ -53,9 +54,12 @@ gifgrep-server/
 ├── .gitignore
 ├── .dockerignore
 ├── api.md              # the v1 contract + curl examples
-├── src/main.go         # the whole server (one file)
-├── go.mod / go.sum     # pin: modernc.org/sqlite v1.40.0
-├── Dockerfile          # multi-stage: golang:1.26-alpine -> alpine:3.20, uid 1000
+├── src/main.rs         # env config, listener, graceful shutdown
+├── src/routes.rs       # router, auth middleware, handlers, logging
+├── src/db.rs           # SQLite open (WAL) + all queries
+├── src/tests.rs        # ported Go tests + POST/PATCH/DELETE contract tests
+├── Cargo.toml / Cargo.lock
+├── Dockerfile          # multi-stage: rust:1-alpine (musl) -> alpine:3.20, uid 1000
 ├── compose.yml         # Portainer-ready stack (no env_file)
 ├── stack.env.example   # FAV_TOKEN=change-me
 └── DEPLOY.md           # exact deploy runbook for veryshiny.net
@@ -73,11 +77,13 @@ docker run -d --name gif-favs -p 8099:8099 \
 
 ## Notes
 
-- **Build image version**: the build stage uses `golang:1.26-alpine` because
-  the pinned deps require Go 1.26.7 (matches the toolchain this was developed
-  with — Go 1.25+).
-- Binary is built with `-trimpath -ldflags="-s -w -buildid="` to keep it under
-  10 MB (~9.5 MiB).
+- **Build image version**: the build stage uses `rust:1-alpine` (musl target,
+  static binary). `sqlx` compiles the bundled SQLite C sources, so the image
+  needs `gcc`/`musl-dev` but the runtime has no SQLite dependency.
+- Binary is built with `strip = true`, `lto = true` in `[profile.release]`
+  (~4 MiB).
+- Tests: `cargo test` (list ordering/pagination, validation, upsert,
+  use-count, delete, auth, 404/405).
 - `last_used` is `null` and `title` is `""` for never-used / untitled items.
 - List responses carry an `X-Total-Count` header with the total number of
   favorites, so paged clients can compute the page count.

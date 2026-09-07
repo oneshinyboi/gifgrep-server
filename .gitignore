@@ -11,9 +11,7 @@ stack.env
 /gif-favs
 /bin/
 dist/
-
-# go
-vendor/
+/target/
 
 # opencode session transcripts
 session-ses*.md

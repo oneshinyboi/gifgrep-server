@@ -14,8 +14,9 @@ outer nginx (443/TLS)  ->  inner nginx (:8080, routes by Host)  ->  gif-favs (:8
 ## 0. Prereqs on the workstation (already done)
 
 - Project dir: `/home/diamond/Projects/gifgrep-server` (this repo root).
-- Binary verified locally: `go build ./src; FAV_TOKEN=test123 ./gif-favs`, full
-  curl pass done, persistence across restart proven.
+- Binary verified locally: `cargo build --release; FAV_TOKEN=test123
+  ./target/release/gif-favs`, full curl pass done, persistence across restart
+  proven.
 
 ---
 
