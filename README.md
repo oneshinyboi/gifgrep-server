@@ -4,8 +4,10 @@ Small, self-hosted GIF-favorites sync server.
 
 A REST API (Rust + axum + SQLite) that stores favorite GIFs as URL bookmarks —
 the server half of a GIF-picker favorites feature, self-hosted and
-terminal-first. Point any client at it and share one favorites list across
-your machines.
+terminal-first. The companion terminal client
+[gifdeck](https://github.com/oneshinyboi/gifdeck) speaks this API out of the
+box: search, preview, favorite, and sync one list across machines. Any HTTP
+client works too.
 
 - Rust (axum + tokio, no HTTP framework beyond axum's router)
 - SQLite via `sqlx` (SQLite C sources bundled at build time; no system SQLite)
