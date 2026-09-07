@@ -1,0 +1,26 @@
+# Portainer-ready stack for gifgrep-server.
+# Paste this into Portainer -> Stacks -> Web editor, then set FAV_TOKEN in the
+# stack's "Environment variables" panel (skip stack.env; Portainer creates it
+# itself). Image must already exist on the host:
+#   cd /home/Diamond/Docker/gifgrep-server && docker build -t giffavs:latest .
+
+services:
+  gif-favs:
+    image: giffavs:latest
+    container_name: gif-favs
+    restart: unless-stopped
+    ports:
+      - "8099:8099"
+    environment:
+      FAV_TOKEN: ${FAV_TOKEN}
+      FAV_PORT: "8099"
+      FAV_HOST: "0.0.0.0"
+      FAV_DB_PATH: /data/favorites.db
+    volumes:
+      - /home/Diamond/Docker/GifFavs/db:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8099/health || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s

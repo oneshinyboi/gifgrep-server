@@ -1,0 +1,12 @@
+# .dockerignore
+db/
+*.db
+*.db-wal
+*.db-shm
+.git/
+.gitignore
+.github/
+vendor/
+dist/
+gif-favs
+/go/pkg

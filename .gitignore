@@ -1,0 +1,19 @@
+# database
+db/
+*.db
+*.db-wal
+*.db-shm
+
+# secrets
+stack.env
+
+# build artifacts
+/gif-favs
+/bin/
+dist/
+
+# go
+vendor/
+
+# opencode session transcripts
+session-ses*.md
