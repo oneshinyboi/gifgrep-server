@@ -1,5 +1,3 @@
-# DEPLOY.md — giffavs deployment runbook (veryshiny.net)
-
 Run by **Diamond**. Everything is prepared; you execute. Nothing here has been
 run against the server — verify each step's output before proceeding.
 
@@ -40,38 +38,23 @@ ss -tln | grep ':8099' || echo "8099 is free"
 
 ---
 
-## 2. Get the source onto the server
+## 2. Get the image on the server
 
-From the workstation (repo root):
-
-```sh
-tar --exclude='./db' --exclude='./.git' -czf /tmp/gif-favs.tgz ./
-scp -i ~/.ssh/id_ed25519_veryshiny /tmp/gif-favs.tgz Diamond@veryshiny.net:/tmp/
-```
-
-On the server:
+The image is published to Docker Hub by the GitHub Action in this repo
+(`.github/workflows/docker-image.yml`, manual dispatch) as
+`diamondcoder295/giffavs:latest`. You don't need the source on the server —
+just pull the image.
 
 ```sh
-mkdir -p /home/Diamond/Docker/GifFavs/gifgrep-server
-tar -xzf /tmp/gif-favs.tgz -C /home/Diamond/Docker/GifFavs/gifgrep-server
-cd /home/Diamond/Docker/GifFavs/gifgrep-server
+ssh -i ~/.ssh/id_ed25519_veryshiny Diamond@veryshiny.net
+docker pull diamondcoder295/giffavs:latest
 ```
 
-## 3. Build the image
-
-Requires Docker + internet for base images (`golang:1.26-alpine`, `alpine:3.20`).
-
-```sh
-cd /home/Diamond/Docker/GifFavs/gifgrep-server
-docker build -t giffavs:latest .
-docker images giffavs:latest
-```
-
-Smoke-test it locally on the server before wiring anything:
+(Optional) Smoke-test it before wiring anything:
 
 ```sh
 FAV_TOKEN=test123 docker run -d --rm --name gif-favs-smoke \
-  -p 8101:8099 -e FAV_TOKEN=test123 -v /tmp/giffavs-db:/data giffavs:latest
+  -p 8101:8099 -e FAV_TOKEN=test123 -v /tmp/giffavs-db:/data diamondcoder295/giffavs:latest
 
 # wait ~2s, then:
 curl -s http://127.0.0.1:8101/health                                 # {"status":"ok"}
@@ -86,9 +69,12 @@ docker rm -f gif-favs-smoke
 rm -rf /tmp/giffavs-db
 ```
 
+> **No source needed on the server.** There's no repo clone or Docker build on
+> veryshiny.net anymore — pull + run only.
+
 ---
 
-## 4. Portainer: add the stack
+## 3. Portainer: add the stack
 
 UI: https://portainer.veryshiny.net -> **Stacks** -> **Add stack**.
 
@@ -104,7 +90,8 @@ UI: https://portainer.veryshiny.net -> **Stacks** -> **Add stack**.
 Notes:
 
 - **No `env_file`** is used; Portainer keeps `FAV_TOKEN` in its own stack env.
-- Image must already exist locally (`giffavs:latest`) — step 3 made that true.
+- Portainer pulls `diamondcoder295/giffavs:latest` from Docker Hub on deploy
+  (tick "Pull latest image" / "Force recreation" when redeploying to update).
 - Container maps host `8099` -> container `8099` and bind-mounts
   `/home/Diamond/Docker/GifFavs/db` -> `/data`.
 - Healthcheck hits `/health` — expect a green dot.
@@ -119,14 +106,14 @@ curl -s http://127.0.0.1:8099/health            # {"status":"ok"}
 
 ---
 
-## 5. Inner nginx: add the `favs.` server block to the router
+## 4. Inner nginx: add the `favs.` server block to the router
 
 You have two options — **A. envsubst (preferred, matches your flow)**, or B. plain manual edit.
 
 The block must be added **before** the `default_server` 404 block in
 `/home/Diamond/Docker/Nginx/nginx.conf.conf`:
 
-## 5-A. envsubst patch (single-quoted var list, re-render, reload)
+## 4-A. envsubst patch (single-quoted var list, re-render, reload)
 
 On the server, as Diamond:
 
@@ -168,7 +155,7 @@ docker exec <nginx-container> nginx -t          # must say: ok
 docker exec <nginx-container> nginx -s reload
 ```
 
-## 5-B. Manual edit (equivalent)
+## 4-B. Manual edit (equivalent)
 
 Append this `server` block to `/home/Diamond/Docker/Nginx/nginx.conf.conf`
 **above** the existing `server { listen 8080 default_server; ... }` 404 block,
@@ -186,11 +173,11 @@ with `server_name favs.veryshiny.net` and the real PASS_IP in `proxy_pass`:
     }
 ```
 
-Then test + reload as in step 5-A-4. **Do not touch the outer nginx.**
+Then test + reload as in step 4-A-4. **Do not touch the outer nginx.**
 
 ---
 
-## 6. Verify end-to-end through the router
+## 5. Verify end-to-end through the router
 
 From the server:
 
@@ -214,7 +201,7 @@ about the certificate **until** the cert SAN is updated (next section).
 
 ---
 
-## 7. Certificate SAN (do this or the public URL is broken)
+## 6. Certificate SAN (do this or the public URL is broken)
 
 The Let's Encrypt cert has an **explicit SAN list**. Add
 `favs.veryshiny.net` to it by hand (however your renewal is set up — certbot
@@ -231,13 +218,34 @@ curl -s -o /dev/null -w "%{http_code}\n" https://favs.veryshiny.net/api/v1/favor
 
 ---
 
-## 8. Final smoke from a workstation
+## 7. Final smoke from a workstation
 
 ```sh
 curl -s -X PATCH -H "X-Auth-Token: <token>" \
   https://favs.veryshiny.net/api/v1/favorites/smoke-1/use
 curl -s -H "X-Auth-Token: <token>" https://favs.veryshiny.net/api/v1/favorites
 ```
+
+---
+
+## 8. Updating the service
+
+New images are published on demand via the GitHub Action
+(`Actions` -> `Build and Push Docker Image` -> `Run workflow`), which pushes a
+new `diamondcoder295/giffavs:<timestamp>` plus `:latest`. To roll it out:
+
+1. Run the workflow on GitHub (requires `DOCKER_HUB_USERNAME` and
+   `DOCKER_HUB_PASSWORD` secrets in this repo — already set).
+2. On the server:
+   ```sh
+   docker pull diamondcoder295/giffavs:latest
+   ```
+3. Recreate the stack in Portainer (Stacks -> gif-favs -> Deploy with
+   "Pull latest image" / "Force recreation" enabled), or stop/start from the
+   stack list.
+
+The bind-mounted DB (`/home/Diamond/Docker/GifFavs/db`) persists across
+recreations — updates never touch favorites data.
 
 ---
 
@@ -255,4 +263,4 @@ curl -s -H "X-Auth-Token: <token>" https://favs.veryshiny.net/api/v1/favorites
 - 404 vs 401 through the router: 404 => the nginx block isn't active; 401 =>
   routing + gate are fine, your token is just missing.
 - If the router can't reach the container IP after a recreation, re-run step
-  5-A with the new `PASS_IP`.
+  4-A with the new `PASS_IP`.
