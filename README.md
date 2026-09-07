@@ -37,7 +37,7 @@ DB is created on first run at `FAV_DB_PATH` (WAL mode, single connection).
 
 ```
 GET    /health                                    -> 200 {"status":"ok"}
-GET    /api/v1/favorites[?limit=N]                -> 200 sorted array
+GET    /api/v1/favorites[?limit=N[&offset=N]]  -> 200 sorted array
 POST   /api/v1/favorites                          -> 200 upserted item
 PATCH  /api/v1/favorites/{id}/use                 -> 200 {id,use_count,last_used}
 DELETE /api/v1/favorites/{id}                     -> 204
@@ -79,5 +79,7 @@ docker run -d --name gif-favs -p 8099:8099 \
 - Binary is built with `-trimpath -ldflags="-s -w -buildid="` to keep it under
   10 MB (~9.5 MiB).
 - `last_used` is `null` and `title` is `""` for never-used / untitled items.
+- List responses carry an `X-Total-Count` header with the total number of
+  favorites, so paged clients can compute the page count.
 - No TLS, no users, no CORS — that is deliberate; the nginx proxy ahead of it
   handles TLS and the bearer token is the whole auth story.

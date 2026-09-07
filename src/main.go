@@ -112,11 +112,30 @@ func (s *server) listFavorites(w http.ResponseWriter, r *http.Request) {
 		}
 		limit = n
 	}
-	q := `SELECT id FROM favorites ORDER BY use_count DESC, last_used DESC, id ASC`
-	if limit > 0 {
-		q += ` LIMIT ` + strconv.Itoa(limit)
+	offset := 0
+	if q := r.URL.Query().Get("offset"); q != "" {
+		n, err := strconv.Atoi(q)
+		if err != nil || n < 0 {
+			writeErr(w, http.StatusBadRequest, "invalid offset")
+			return
+		}
+		offset = n
 	}
-	ids, err := s.db.Query(q)
+	// Offset without limit still skips; a negative LIMIT means "no limit"
+	// in SQLite, so -1 keeps the unbounded default while applying OFFSET.
+	var total int64
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM favorites`).Scan(&total); err != nil {
+		writeErr(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	w.Header().Set("X-Total-Count", strconv.FormatInt(total, 10))
+	sqlLimit := limit
+	if sqlLimit <= 0 {
+		sqlLimit = -1
+	}
+	ids, err := s.db.Query(
+		`SELECT id FROM favorites ORDER BY use_count DESC, last_used DESC, id ASC LIMIT ? OFFSET ?`,
+		sqlLimit, offset)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "db error")
 		return

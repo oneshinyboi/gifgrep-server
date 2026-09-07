@@ -33,7 +33,15 @@ curl -s http://127.0.0.1:8099/health
 Authenticated. Returns the full list, sorted by `use_count` DESC then
 `last_used` DESC.
 
-Optional query param `?limit=N` (positive integer) truncates the list.
+Optional query params:
+
+- `?limit=N` (non-negative integer) truncates the list.
+- `?offset=N` (non-negative integer) skips the first N items. Combine with
+  `limit` for page-by-page browsing, e.g. `?limit=50&offset=50` is page 2.
+  An empty result means the end of the list.
+
+Every list response carries an `X-Total-Count` header (integer) with the
+total number of favorites, so clients can compute the page count.
 
 Item shape:
 
@@ -56,6 +64,7 @@ when not provided.
 ```
 curl -s -H "X-Auth-Token: $FAV_TOKEN" http://127.0.0.1:8099/api/v1/favorites
 curl -s -H "X-Auth-Token: $FAV_TOKEN" 'http://127.0.0.1:8099/api/v1/favorites?limit=10'
+curl -s -H "X-Auth-Token: $FAV_TOKEN" 'http://127.0.0.1:8099/api/v1/favorites?limit=50&offset=50'
 ```
 
 ---
